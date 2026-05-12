@@ -1,12 +1,19 @@
 import React, { useContext } from 'react';
-import {View,Text,FlatList,TouchableOpacity,Alert,StyleSheet} from 'react-native';
+import {View,Text,FlatList,TouchableOpacity,Alert,TextInput,StyleSheet} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { CartContext } from '../context/CartContext';
 import { db } from '../config/firebase';
 import { COLORS, globalStyles } from '../styles/globalStyles';
 
 const CartScreen = ({ navigation }) => {
-  const { cartItems, removeFromCart, clearCart, getCartTotal } = useContext(CartContext);
+  const {
+    cartItems,
+    removeFromCart,
+    clearCart,
+    getCartTotal,
+    updateQuantity, // F08
+    updateNote,     // F03
+  } = useContext(CartContext);
 
   const handleConfirmOrder = async () => {
     if (cartItems.length === 0) {
@@ -14,10 +21,17 @@ const CartScreen = ({ navigation }) => {
       return;
     }
 
+    // F06: el total enviado a Firestore incluye el IVA
+    const subtotal = getCartTotal();
+    const iva = Math.round(subtotal * 0.19);
+    const total = subtotal + iva;
+
     try {
-        await db.collection('orders').add({
-        items: cartItems,
-        total: getCartTotal(),
+      await db.collection('orders').add({
+        items: cartItems, // F03: los ítems ya incluyen el campo "notes"
+        subtotal,
+        iva,
+        total,
         status: 'confirmed',
         createdAt: new Date().toISOString(),
       });
@@ -48,27 +62,52 @@ const CartScreen = ({ navigation }) => {
 
   const renderCartItem = ({ item }) => (
     <View style={styles.cartItemCard}>
-      <View style={styles.itemInfo}>
+      {/* Nombre + botón eliminar */}
+      <View style={styles.itemHeader}>
         <Text style={styles.itemName}>{item.name}</Text>
-        <Text style={styles.itemPrice}>
-          ${item.price.toLocaleString('es-CO')} x {item.quantity}
-        </Text>
-      </View>
-      <View style={styles.itemActions}>
-        <Text style={styles.itemSubtotal}>
-          ${(item.price * item.quantity).toLocaleString('es-CO')}
-        </Text>
-        <TouchableOpacity
-          style={styles.removeButton}
-          onPress={() => handleRemoveItem(item)}
-        >
+        <TouchableOpacity style={styles.removeButton} onPress={() => handleRemoveItem(item)}>
           <Text style={styles.removeButtonText}>✕</Text>
         </TouchableOpacity>
       </View>
+
+      {/* F08: controles de cantidad +/- y subtotal del ítem */}
+      <View style={styles.quantityRow}>
+        <Text style={styles.itemPrice}>${item.price.toLocaleString('es-CO')} c/u</Text>
+        <View style={styles.quantityControl}>
+          <TouchableOpacity
+            style={styles.qtyButton}
+            onPress={() => updateQuantity(item.id, -1)}
+          >
+            <Text style={styles.qtyButtonText}>−</Text>
+          </TouchableOpacity>
+          <Text style={styles.qtyText}>{item.quantity}</Text>
+          <TouchableOpacity
+            style={styles.qtyButton}
+            onPress={() => updateQuantity(item.id, 1)}
+          >
+            <Text style={styles.qtyButtonText}>+</Text>
+          </TouchableOpacity>
+        </View>
+        <Text style={styles.itemSubtotal}>
+          ${(item.price * item.quantity).toLocaleString('es-CO')}
+        </Text>
+      </View>
+
+      {/* F03: campo de notas especiales por ítem */}
+      <TextInput
+        style={styles.notesInput}
+        value={item.notes || ''}
+        onChangeText={(text) => updateNote(item.id, text)}
+        placeholder="Notas especiales: sin cebolla, extra picante..."
+        placeholderTextColor={COLORS.disabled}
+      />
     </View>
   );
 
+  // F06: cálculo de subtotal, IVA y total final
   const subtotal = getCartTotal();
+  const iva = Math.round(subtotal * 0.19);
+  const total = subtotal + iva;
 
   return (
     <SafeAreaView style={globalStyles.safeArea}>
@@ -108,23 +147,23 @@ const CartScreen = ({ navigation }) => {
 
         {cartItems.length > 0 && (
           <View style={styles.bottomSection}>
+            {/* F06: Subtotal, IVA y Total con IVA incluido */}
             <View style={styles.totalRow}>
               <Text style={styles.totalLabel}>Subtotal</Text>
-              <Text style={styles.totalValue}>
-                ${subtotal.toLocaleString('es-CO')}
-              </Text>
+              <Text style={styles.totalValue}>${subtotal.toLocaleString('es-CO')}</Text>
+            </View>
+            <View style={styles.totalRow}>
+              <Text style={styles.totalLabel}>IVA (19%)</Text>
+              <Text style={styles.totalValue}>${iva.toLocaleString('es-CO')}</Text>
             </View>
             <View style={[styles.totalRow, styles.grandTotal]}>
               <Text style={styles.grandTotalLabel}>Total</Text>
-              <Text style={styles.grandTotalValue}>
-                ${subtotal.toLocaleString('es-CO')}
-              </Text>
+              <Text style={styles.grandTotalValue}>${total.toLocaleString('es-CO')}</Text>
             </View>
-            <TouchableOpacity
-              style={styles.confirmButton}
-              onPress={handleConfirmOrder}
-            >
-              <Text style={styles.confirmButtonText}>Confirmar Pedido</Text>
+            <TouchableOpacity style={styles.confirmButton} onPress={handleConfirmOrder}>
+              <Text style={styles.confirmButtonText}>
+                Confirmar Pedido — ${total.toLocaleString('es-CO')}
+              </Text>
             </TouchableOpacity>
           </View>
         )}
@@ -153,39 +192,26 @@ const styles = StyleSheet.create({
   cartItemCard: {
     backgroundColor: COLORS.surface,
     borderRadius: 12,
-    padding: 16,
+    padding: 14,
     marginBottom: 10,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.06,
     shadowRadius: 3,
     elevation: 2,
   },
-  itemInfo: {
-    flex: 1,
-    marginRight: 12,
+  itemHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
   },
   itemName: {
     fontSize: 16,
     fontWeight: '700',
     color: COLORS.textPrimary,
-    marginBottom: 4,
-  },
-  itemPrice: {
-    fontSize: 13,
-    color: COLORS.textSecondary,
-  },
-  itemActions: {
-    alignItems: 'flex-end',
-  },
-  itemSubtotal: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: COLORS.primary,
-    marginBottom: 8,
+    flex: 1,
+    marginRight: 8,
   },
   removeButton: {
     backgroundColor: '#FEE2E2',
@@ -200,6 +226,64 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
   },
+  // F08: fila de cantidad con controles +/-
+  quantityRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+  },
+  itemPrice: {
+    fontSize: 13,
+    color: COLORS.textSecondary,
+    flex: 1,
+  },
+  quantityControl: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  qtyButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    backgroundColor: COLORS.background,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  qtyButtonText: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: COLORS.textPrimary,
+    lineHeight: 20,
+  },
+  qtyText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: COLORS.textPrimary,
+    minWidth: 28,
+    textAlign: 'center',
+  },
+  itemSubtotal: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: COLORS.primary,
+    flex: 1,
+    textAlign: 'right',
+  },
+  // F03: campo de notas especiales
+  notesInput: {
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    fontSize: 13,
+    color: COLORS.textPrimary,
+    backgroundColor: COLORS.background,
+  },
   bottomSection: {
     padding: 16,
     backgroundColor: COLORS.surface,
@@ -209,7 +293,7 @@ const styles = StyleSheet.create({
   totalRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 8,
+    marginBottom: 6,
   },
   totalLabel: {
     fontSize: 15,

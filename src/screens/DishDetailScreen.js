@@ -1,14 +1,53 @@
-import React, { useContext } from 'react';
+import React, { useContext, useState, useEffect } from 'react';
 // Bug #1: ScrollView no estaba importado pero se usaba en el render → crash al abrir el detalle
 import {View,Text,Image,TouchableOpacity,Alert,ScrollView,StyleSheet} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { CartContext } from '../context/CartContext';
 import { COLORS, globalStyles } from '../styles/globalStyles';
+
+const FAVORITES_KEY = '@foodie_favorites';
 
 const DishDetailScreen = ({ route, navigation }) => {
   const { addToCart } = useContext(CartContext);
   // Bug #2: era "const { dish } = route.params" — no existe clave "dish", dish era undefined y crasheaba
   const dish = route.params;
+
+  // F02: estado de favorito para este plato
+  const [isFavorite, setIsFavorite] = useState(false);
+
+  useEffect(() => {
+    checkFavorite();
+  }, []);
+
+  const checkFavorite = async () => {
+    try {
+      const stored = await AsyncStorage.getItem(FAVORITES_KEY);
+      const favorites = stored ? JSON.parse(stored) : [];
+      setIsFavorite(favorites.some(f => f.id === dish.dishId));
+    } catch (error) {}
+  };
+
+  const toggleFavorite = async () => {
+    try {
+      const stored = await AsyncStorage.getItem(FAVORITES_KEY);
+      let favorites = stored ? JSON.parse(stored) : [];
+      if (isFavorite) {
+        favorites = favorites.filter(f => f.id !== dish.dishId);
+      } else {
+        favorites.push({
+          id: dish.dishId,
+          name: dish.dishName,
+          price: dish.dishPrice,
+          image: dish.dishImage,
+          category: dish.dishCategory,
+          rating: dish.dishRating,
+        });
+      }
+      await AsyncStorage.setItem(FAVORITES_KEY, JSON.stringify(favorites));
+      setIsFavorite(!isFavorite);
+    } catch (error) {}
+  };
 
   const handleAddToCart = () => {
     addToCart({
@@ -38,9 +77,17 @@ const DishDetailScreen = ({ route, navigation }) => {
         <View style={styles.contentContainer}>
           <View style={styles.headerRow}>
             <Text style={styles.dishName}>{dish?.dishName || 'Plato no encontrado'}</Text>
-            <View style={styles.ratingBadge}>
-              <Text style={styles.ratingStar}>★</Text>
-              <Text style={styles.ratingText}>{dish?.dishRating || '0.0'}</Text>
+            <View style={styles.headerActions}>
+              {/* F02: botón de favorito que alterna entre ♡ y ♥ */}
+              <TouchableOpacity onPress={toggleFavorite} style={styles.favoriteButton}>
+                <Text style={[styles.favoriteIcon, isFavorite && styles.favoriteIconActive]}>
+                  {isFavorite ? '♥' : '♡'}
+                </Text>
+              </TouchableOpacity>
+              <View style={styles.ratingBadge}>
+                <Text style={styles.ratingStar}>★</Text>
+                <Text style={styles.ratingText}>{dish?.dishRating || '0.0'}</Text>
+              </View>
             </View>
           </View>
 
@@ -88,6 +135,22 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  // F02: estilos del botón de favorito
+  favoriteButton: {
+    padding: 4,
+  },
+  favoriteIcon: {
+    fontSize: 26,
+    color: COLORS.border,
+  },
+  favoriteIconActive: {
+    color: COLORS.error,
   },
   dishName: {
     fontSize: 24,

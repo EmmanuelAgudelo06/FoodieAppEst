@@ -7,6 +7,8 @@ import { COLORS, globalStyles } from '../styles/globalStyles';
 const OrderHistoryScreen = ({ navigation }) => {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
+  // F07: mapa de orderId → calificación seleccionada (estado local)
+  const [ratings, setRatings] = useState({});
 
   useEffect(() => {
     let unsubscribe;
@@ -35,6 +37,16 @@ const OrderHistoryScreen = ({ navigation }) => {
       setLoading(false);
     }
   }, []);
+
+  // F07: guarda la calificación en Firestore y en estado local
+  const handleRateOrder = async (orderId, rating) => {
+    setRatings(prev => ({ ...prev, [orderId]: rating }));
+    try {
+      await db.collection('orders').doc(orderId).update({ rating });
+    } catch (error) {
+      console.log('Rating saved locally:', error.message);
+    }
+  };
 
   const getStatusColor = (status) => {
     switch (status) {
@@ -104,6 +116,31 @@ const OrderHistoryScreen = ({ navigation }) => {
         </Text>
         <Text style={styles.viewDetail}>Ver detalle →</Text>
       </View>
+
+      {/* F07: calificación por estrellas solo para pedidos entregados */}
+      {item.status === 'delivered' && (
+        <View style={styles.ratingSection}>
+          <Text style={styles.ratingLabel}>
+            {ratings[item.id] || item.rating ? 'Tu calificación:' : 'Califica tu pedido:'}
+          </Text>
+          <View style={styles.starsRow}>
+            {[1, 2, 3, 4, 5].map(star => {
+              const current = ratings[item.id] ?? item.rating ?? 0;
+              return (
+                <TouchableOpacity
+                  key={star}
+                  onPress={() => !item.rating && handleRateOrder(item.id, star)}
+                  disabled={!!item.rating}
+                >
+                  <Text style={[styles.star, star <= current && styles.starFilled]}>
+                    {star <= current ? '★' : '☆'}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </View>
+      )}
     </TouchableOpacity>
   );
 
@@ -224,6 +261,32 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: COLORS.textSecondary,
     fontWeight: '500',
+  },
+  // F07: estilos de la sección de calificación
+  ratingSection: {
+    borderTopWidth: 1,
+    borderTopColor: COLORS.border,
+    paddingTop: 10,
+    marginTop: 6,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  ratingLabel: {
+    fontSize: 13,
+    color: COLORS.textSecondary,
+    fontWeight: '500',
+  },
+  starsRow: {
+    flexDirection: 'row',
+    gap: 4,
+  },
+  star: {
+    fontSize: 24,
+    color: COLORS.border,
+  },
+  starFilled: {
+    color: COLORS.star,
   },
 });
 

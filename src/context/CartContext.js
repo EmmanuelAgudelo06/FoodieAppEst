@@ -63,6 +63,31 @@ export const CartProvider = ({ children }) => {
     saveCart(updatedCart);
   };
 
+  // F08: Incrementa o decrementa la cantidad de un ítem; si llega a 0 lo elimina
+  const updateQuantity = (dishId, delta) => {
+    const updatedCart = [...cartItems];
+    const index = updatedCart.findIndex(item => item.id === dishId);
+    if (index > -1) {
+      const newQty = updatedCart[index].quantity + delta;
+      if (newQty <= 0) {
+        updatedCart.splice(index, 1);
+      } else {
+        updatedCart[index] = { ...updatedCart[index], quantity: newQty };
+      }
+      setCartItems(updatedCart);
+      saveCart(updatedCart);
+    }
+  };
+
+  // F03: Actualiza las notas especiales asociadas a un ítem del carrito
+  const updateNote = (dishId, note) => {
+    const updated = cartItems.map(item =>
+      item.id === dishId ? { ...item, notes: note } : item
+    );
+    setCartItems(updated);
+    saveCart(updated);
+  };
+
   const clearCart = () => {
     setCartItems([]);
     saveCart([]);
@@ -81,6 +106,8 @@ export const CartProvider = ({ children }) => {
         removeFromCart,
         clearCart,
         getCartTotal,
+        updateQuantity,
+        updateNote,
       }}
     >
       {children}
