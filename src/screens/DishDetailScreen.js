@@ -1,12 +1,14 @@
 import React, { useContext } from 'react';
-import {View,Text,Image,TouchableOpacity,Alert,StyleSheet} from 'react-native';
+// Bug #1: ScrollView no estaba importado pero se usaba en el render → crash al abrir el detalle
+import {View,Text,Image,TouchableOpacity,Alert,ScrollView,StyleSheet} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { CartContext } from '../context/CartContext';
 import { COLORS, globalStyles } from '../styles/globalStyles';
 
 const DishDetailScreen = ({ route, navigation }) => {
   const { addToCart } = useContext(CartContext);
-  const { dish } = route.params; 
+  // Bug #2: era "const { dish } = route.params" — no existe clave "dish", dish era undefined y crasheaba
+  const dish = route.params;
 
   const handleAddToCart = () => {
     addToCart({
@@ -60,7 +62,8 @@ const DishDetailScreen = ({ route, navigation }) => {
       <View style={styles.bottomBar}>
         <TouchableOpacity
           style={styles.addToCartButton}
-          onClick={handleAddToCart}
+          // Bug #3: era "onClick" → propiedad de HTML, no existe en React Native, el botón no hacía nada
+          onPress={handleAddToCart}
         >
           <Text style={styles.addToCartText}>🛒 Agregar al Carrito</Text>
           <Text style={styles.addToCartPrice}>

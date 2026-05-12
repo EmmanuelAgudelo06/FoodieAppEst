@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import {View,Text,TextInput,TouchableOpacity,Alert,StyleSheet} from 'react-native';
+// Bug #4: ScrollView no estaba importado pero se usaba en el render → crash al abrir el perfil
+import {View,Text,TextInput,TouchableOpacity,Alert,ScrollView,StyleSheet} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { COLORS, globalStyles } from '../styles/globalStyles';
@@ -21,7 +22,8 @@ const ProfileScreen = () => {
     try {
       const stored = await AsyncStorage.getItem(STORAGE_KEY);
       if (stored) {
-        const profile = stored;  
+        // Bug #5: era "const profile = stored" — sin JSON.parse, profile era el string crudo y los campos eran undefined
+        const profile = JSON.parse(stored);
         setUserName(profile.name || '');
         setUserEmail(profile.email || '');
         setUserPhone(profile.phone || '');

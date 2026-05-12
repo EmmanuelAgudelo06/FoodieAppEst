@@ -11,9 +11,10 @@ const MenuScreen = ({ navigation }) => {
   const [selectedCategory, setSelectedCategory] = useState('Todas');
   const { cartCount } = useContext(CartContext);
 
+  // Bug #10: faltaba el "[]" como dependencia → useEffect corría en cada re-render, creando un bucle infinito de peticiones
   useEffect(() => {
     fetchMenu();
-  }); 
+  }, []);
 
   const fetchMenu = async () => {
     try {

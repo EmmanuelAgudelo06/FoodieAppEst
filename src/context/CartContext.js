@@ -12,16 +12,18 @@ export const CartProvider = ({ children }) => {
   }, []);
 
 
+  // Bug #6: era "}, []" → el efecto solo corría al montar, el contador nunca se actualizaba al agregar/quitar ítems
   useEffect(() => {
     const total = cartItems.reduce((sum, item) => sum + item.quantity, 0);
     setCartCount(total);
-  }, []); 
+  }, [cartItems]);
 
   const loadCart = async () => {
     try {
       const stored = await AsyncStorage.getItem('@foodie_cart');
       if (stored) {
-        setCartItems(stored); 
+        // Bug #7: era "setCartItems(stored)" — guardaba el string JSON como estado, rompiendo todo el carrito al reabrir la app
+        setCartItems(JSON.parse(stored));
       }
     } catch (error) {
       console.error('Error loading cart:', error);
@@ -30,7 +32,8 @@ export const CartProvider = ({ children }) => {
 
   const saveCart = async (items) => {
     try {
-      await AsyncStorage.setItem('@foodie_cart', items); 
+      // Bug #8: era "setItem('@foodie_cart', items)" — AsyncStorage solo acepta strings, pasarle el array lanzaba error y no persistía nada
+      await AsyncStorage.setItem('@foodie_cart', JSON.stringify(items));
     } catch (error) {
       console.error('Error saving cart:', error);
     }
@@ -50,7 +53,8 @@ export const CartProvider = ({ children }) => {
   };
   
   const removeFromCart = (dishId) => {
-    const updatedCart = cartItems;  
+    // Bug #9: era "const updatedCart = cartItems" → referencia al mismo array, mutación directa del estado, React no detectaba el cambio
+    const updatedCart = [...cartItems];
     const index = updatedCart.findIndex(item => item.id === dishId);
     if (index > -1) {
       updatedCart.splice(index, 1);  
