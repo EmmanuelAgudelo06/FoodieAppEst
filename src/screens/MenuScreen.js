@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useContext } from 'react';
-import {View,Text,FlatList,TouchableOpacity,Image,ActivityIndicator,StyleSheet} from 'react-native';
+import {View,Text,FlatList,TouchableOpacity,Image,ActivityIndicator,TextInput,ScrollView,StyleSheet} from 'react-native';
 import { CartContext } from '../context/CartContext';
 import { db } from '../config/firebase';
 import { LOCAL_MENU, CATEGORIES } from '../utils/seedData';
@@ -9,11 +9,13 @@ const MenuScreen = ({ navigation }) => {
   const [dishes, setDishes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState('Todas');
+  const [searchText, setSearchText] = useState(''); // F01
   const { cartCount } = useContext(CartContext);
 
+  // Bug #10: faltaba el "[]" como dependencia → useEffect corría en cada re-render, creando un bucle infinito de peticiones
   useEffect(() => {
     fetchMenu();
-  }); 
+  }, []);
 
   const fetchMenu = async () => {
     try {
@@ -25,7 +27,7 @@ const MenuScreen = ({ navigation }) => {
         }));
         setDishes(menuData);
       } else {
-          setDishes(LOCAL_MENU);
+        setDishes(LOCAL_MENU);
       }
     } catch (error) {
       console.log('Using local menu data:', error.message);
@@ -35,9 +37,10 @@ const MenuScreen = ({ navigation }) => {
     }
   };
 
-  const filteredDishes = selectedCategory === 'Todas'
-    ? dishes
-    : dishes.filter(dish => dish.category === selectedCategory);
+  // F01 + F04: aplica filtro de categoría y de búsqueda por texto en tiempo real
+  const filteredDishes = dishes
+    .filter(dish => selectedCategory === 'Todas' || dish.category === selectedCategory)
+    .filter(dish => dish.name.toLowerCase().includes(searchText.toLowerCase()));
 
   const renderDishItem = ({ item }) => (
     <TouchableOpacity
@@ -86,23 +89,69 @@ const MenuScreen = ({ navigation }) => {
 
   return (
     <View style={globalStyles.container}>
-      {/* Header */}
       <View style={styles.header}>
         <Text style={globalStyles.title}>FoodieApp 🍽️</Text>
         <Text style={globalStyles.bodyText}>
           {filteredDishes.length} platos disponibles
         </Text>
       </View>
+
+      {/* F01: Barra de búsqueda con botón para limpiar */}
+      <View style={styles.searchContainer}>
+        <TextInput
+          style={styles.searchInput}
+          value={searchText}
+          onChangeText={setSearchText}
+          placeholder="Buscar platos..."
+          placeholderTextColor={COLORS.disabled}
+        />
+        {searchText.length > 0 && (
+          <TouchableOpacity onPress={() => setSearchText('')} style={styles.clearButton}>
+            <Text style={styles.clearButtonText}>✕</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+
+      {/* F04: Filtro horizontal de categorías con chips */}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={styles.categoriesScroll}
+        contentContainerStyle={styles.categoriesContainer}
+      >
+        {CATEGORIES.map(category => (
+          <TouchableOpacity
+            key={category}
+            style={[
+              styles.categoryChip,
+              selectedCategory === category && styles.categoryChipActive,
+            ]}
+            onPress={() => setSelectedCategory(category)}
+          >
+            <Text
+              style={[
+                styles.categoryChipText,
+                selectedCategory === category && styles.categoryChipTextActive,
+              ]}
+            >
+              {category}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
+
       <FlatList
         data={filteredDishes}
         renderItem={renderDishItem}
-        keyExtractor={(item, index) => index.toString()} 
+        keyExtractor={(item) => item.id}
         contentContainerStyle={styles.listContainer}
         showsVerticalScrollIndicator={false}
         ListEmptyComponent={
           <View style={globalStyles.emptyState}>
             <Text style={globalStyles.emptyText}>
-              No hay platos disponibles
+              {searchText
+                ? `No se encontraron platos para "${searchText}"`
+                : 'No hay platos disponibles'}
             </Text>
           </View>
         }
@@ -116,6 +165,60 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 16,
     paddingBottom: 8,
+  },
+  // F01: estilos de la barra de búsqueda
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginHorizontal: 16,
+    marginBottom: 10,
+    backgroundColor: COLORS.surface,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    paddingHorizontal: 12,
+  },
+  searchInput: {
+    flex: 1,
+    height: 42,
+    fontSize: 14,
+    color: COLORS.textPrimary,
+  },
+  clearButton: {
+    padding: 6,
+  },
+  clearButtonText: {
+    fontSize: 14,
+    color: COLORS.textSecondary,
+    fontWeight: '600',
+  },
+  // F04: estilos de los chips de categoría
+  categoriesScroll: {
+    marginBottom: 8,
+  },
+  categoriesContainer: {
+    paddingHorizontal: 16,
+    gap: 8,
+  },
+  categoryChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 20,
+    backgroundColor: COLORS.surface,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  categoryChipActive: {
+    backgroundColor: COLORS.primary,
+    borderColor: COLORS.primary,
+  },
+  categoryChipText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: COLORS.textSecondary,
+  },
+  categoryChipTextActive: {
+    color: '#FFFFFF',
   },
   listContainer: {
     paddingHorizontal: 16,
